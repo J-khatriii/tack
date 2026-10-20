@@ -1,26 +1,50 @@
-import { useEffect, useState } from "react";
-import { getDb } from "../storage/db.js";
+import { useCallback, useEffect, useState } from "react";
 import { ensureDefaultProject } from "../storage/seed.js";
+import { listProjects } from "../storage/projects.js";
+import { listColumns } from "../storage/columns.js";
+import { createTask, listTasks } from "../storage/tasks.js";
 
 function App() {
-  const [data, setData] = useState(null);
+  const [state, setState] = useState(null);
 
-  useEffect(() => {
-    (async () => {
-      await ensureDefaultProject();
-      const db = await getDb();
-      setData({
-        projects: await db.getAll("projects"),
-        columns: await db.getAll("columns"),
-      });
-    })();
+  const load = useCallback(async () => {
+    await ensureDefaultProject();
+    const [project] = await listProjects();
+    const columns = await listColumns(project.id);
+    const tasks = await listTasks(project.id);
+    setState({ project, columns, tasks });
   }, []);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const addTask = async () => {
+    await createTask({
+      projectId: state.project.id,
+      columnId: state.columns[0].id,
+      title: `Test task ${state.tasks.length + 1}`,
+    });
+    await load();
+  };
+
+  if (!state) return <p className="p-6 text-fg-muted">loading...</p>;
+
   return (
-    <div className="flex h-screen items-center justify-center">
-      <pre className="rounded-lg border border-border bg-surface p-6 text-xs text-fg-muted">
-        {data ? JSON.stringify(data, null, 2) : "loading..."}
-      </pre>
+    <div className="mx-auto max-w-md p-6">
+      <button
+        onClick={addTask}
+        className="rounded-md bg-accent px-3 py-1.5 text-sm text-white"
+      >
+        Add test task
+      </button>
+      <ul className="mt-4 space-y-1 text-sm text-fg-muted">
+        {state.tasks.map((t) => (
+          <li key={t.id}>
+            {t.displayId} · {t.title} · position {t.position}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
